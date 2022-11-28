@@ -7,7 +7,6 @@ Introductory machine learning course which gives an overview of many models and 
 | Homework | Overview |
 | ------ | ------ |
 | HW1 | This assignment steps through programming syntax with ggplot2 and introduces the formula interface with the lm() function. The grammar of graphics can help create meaningful visualizations which communicate Exploratory Data Analysis (EDA) findings. Visualizations will provide context to the model results, which might be opaque and difficult to interpret. In this assignment you will demonstrate basic syntax, go through a detailed EDA of a common data set, and then begin to work through the syntax of fitting a model.
-
 | HW2 | This assignment introduces training and comparing models with the caret package. You will demonstrate a majority of the steps in predictive modeling applications. You will apply those actions to a simplified regression example. You will then work with a binary classification problem, focusing on calculating confusion matrix metrics from given model predictions.
 
 | HW3 | In the previous assignment, you calculated important binary classification performance metrics by hand. You will now use existing functions from the caret and yardstick packages to train and assess the performance of multiple binary classifiers. The resampling and model evaluation will be managed by the
