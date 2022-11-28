@@ -1,0 +1,7 @@
+".metric",".estimator",".estimate"
+"rmse","standard",0.228427746431059
+"rsq","standard",0.824832954218298
+"mae","standard",0.182419505191499
+"accuracy","binary",0.73972602739726
+"mn_log_loss","binary",0.556244332261945
+"roc_auc","binary",0.845217391304348

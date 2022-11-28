@@ -1,0 +1,1663 @@
+---
+title: "CS 1675 PPG Final Project"
+author: "Sameera Boppana"
+date: "3/26/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load Packages 
+
+```{r}
+library(tidyverse)
+library(caret)
+```
+
+# Part 1: Exploratory Data Analysis
+## Read Data
+### Read in the data from CSV file
+```{r}
+df <- readr::read_csv('final_project_train.csv', col_names = TRUE)
+df %>% glimpse()
+```
+
+```{r}
+visdat::vis_miss(df)
+```
+
+There are no missing values present in the data. 
+
+```{r}
+visdat::vis_dat(df)
+```
+
+The data types present within the data set are either character or numeric. 
+
+```{r}
+df %>% purrr::map_dbl(n_distinct)
+```
+
+There are a wide range of distinct values. 
+
+```{r}
+df %>% count(outcome)
+```
+
+
+```{r}
+df %>% count(region)
+```
+
+```{r}
+df %>% count(customer)
+```
+
+```{r}
+df %>% count(customer, region)
+```
+
+All A customers are from region ZZ. 
+All K customers are from region ZZ. 
+
+Visualizing the relationship between customer and region 
+```{r}
+df %>% 
+  ggplot(mapping = aes(x = as.factor(customer))) + 
+  geom_bar(mapping = aes(fill = as.factor(region)), position = "dodge") +
+  theme_bw()
+
+```
+
+
+
+## Continous Input Distributions
+### Examining the distributions of the continous inputs 
+
+```{r}
+continuous_vars <- colnames(df)
+continuous_vars <- continuous_vars[-1:-3]
+continuous_vars <- continuous_vars[-length(continuous_vars)]
+continuous_vars <- continuous_vars[-length(continuous_vars)]
+continuous_vars
+
+df %>% 
+  select(all_of(continuous_vars)) %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(!c("rowid")) %>% 
+  ggplot(mapping = aes(x = value)) + 
+  geom_histogram(bins = 50) + 
+  facet_wrap(~name, scales = "free") +
+  theme_bw() +
+  theme(axis.text.y = element_blank())
+```
+
+### Examining the distribution of the continuous inputs filtering by outcome type
+#### Outcome = Event
+
+```{r}
+df %>% 
+  filter(outcome == "event") %>% 
+  select(all_of(continuous_vars)) %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(!c("rowid")) %>% 
+  ggplot(mapping = aes(x = value)) + 
+  geom_histogram(bins = 50) + 
+  facet_wrap(~name, scales = "free") +
+  theme_bw() +
+  theme(axis.text.y = element_blank()) 
+
+df %>% 
+  filter(outcome == "event") %>% 
+  select(all_of(continuous_vars)) %>% summary()
+```
+
+#### Outcome = Non_Event
+
+```{r}
+df %>% 
+  filter(outcome == "non_event") %>% 
+  select(all_of(continuous_vars)) %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(!c("rowid")) %>% 
+  ggplot(mapping = aes(x = value)) + 
+  geom_histogram(bins = 50) + 
+  facet_wrap(~name, scales = "free") +
+  theme_bw() +
+  theme(axis.text.y = element_blank())
+
+df %>% 
+  filter(outcome == "non_event") %>% 
+  select(all_of(continuous_vars)) %>% 
+  summary()
+```
+
+For most of the sentiment derived features, each product sold to a customer has a greater sentiment value when the outcome is classified as an event. 
+
+### Examining the impact on region on the continuous variables 
+#### Region = XX
+
+```{r}
+
+df %>% 
+  filter(region == "XX") %>% 
+  select(all_of(continuous_vars)) %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(!c("rowid")) %>% 
+  ggplot(mapping = aes(x = value)) + 
+  geom_histogram(bins = 50) + 
+  facet_wrap(~name, scales = "free") +
+  theme_bw() +
+  theme(axis.text.y = element_blank())
+
+df %>% 
+  filter(region == "XX") %>% 
+  select(all_of(continuous_vars)) %>% 
+  summary()
+```
+
+#### Region = YY
+
+```{r}
+df %>% 
+  filter(region == "YY") %>% 
+  select(all_of(continuous_vars)) %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(!c("rowid")) %>% 
+  ggplot(mapping = aes(x = value)) + 
+  geom_histogram(bins = 50) + 
+  facet_wrap(~name, scales = "free") +
+  theme_bw() +
+  theme(axis.text.y = element_blank())
+
+df %>% 
+  filter(region == "YY") %>% 
+  select(all_of(continuous_vars)) %>% 
+  summary()
+```
+
+#### Region == ZZ
+
+```{r}
+df %>% 
+  filter(region == "ZZ") %>% 
+  select(all_of(continuous_vars)) %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(!c("rowid")) %>% 
+  ggplot(mapping = aes(x = value)) + 
+  geom_histogram(bins = 50) + 
+  facet_wrap(~name, scales = "free") +
+  theme_bw() +
+  theme(axis.text.y = element_blank())
+
+df %>% 
+  filter(region == "ZZ") %>% 
+  select(all_of(continuous_vars)) %>% 
+  summary()
+```
+
+In general, it appears that for most of the derived sentiment features, Region ZZ has the highest sentiment values. 
+
+
+### Examining the correlation between the continuous inputs 
+
+```{r}
+df %>% 
+  select(all_of(continuous_vars)) %>% 
+  cor() %>% 
+  corrplot::corrplot( type = 'upper' )
+```
+
+There appears to be many continuous variables that are highly correlated, both positively and negatively. 
+
+### Examining the relationship between the continuous output (response) with respect to the continous inputs 
+
+```{r}
+df %>% 
+  ggplot(mapping = aes(df$xb_01, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xb_02, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xb_03, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xb_04, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xb_05, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xb_06, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xb_07, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xb_08, response)) + geom_line()
+
+```
+
+```{r}
+df %>% 
+  ggplot(mapping = aes(df$xn_01, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xn_02, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xn_03, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xn_04, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xn_05, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xn_06, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xn_07, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xn_08, response)) + geom_line()
+```
+
+```{r}
+
+df %>% 
+  ggplot(mapping = aes(df$xa_01, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xa_02, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xa_03, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xa_04, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xa_05, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xa_06, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xa_07, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xa_08, response)) + geom_line()
+```
+
+```{r}
+df %>% 
+  ggplot(mapping = aes(df$xw_01, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xw_02, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xw_03, response)) + geom_line()
+```
+
+```{r}
+df %>% 
+  ggplot(mapping = aes(df$xs_01, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xs_02, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xs_03, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xs_04, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xs_05, response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xs_06, response)) + geom_line()
+
+```
+
+### Adding Log-transformed Response
+
+```{r}
+df$log_response <- log(df$response)
+df %>% glimpse
+```
+
+```{r}
+df %>% 
+  ggplot(mapping = aes(df$xb_01, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xb_02, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xb_03, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xb_04, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xb_05, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xb_06, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xb_07, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xb_08, log_response)) + geom_line()
+
+```
+
+```{r}
+df %>% 
+  ggplot(mapping = aes(df$xn_01, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xn_02, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xn_03, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xn_04, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xn_05, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xn_06, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xn_07, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xn_08, log_response)) + geom_line()
+```
+
+```{r}
+
+df %>% 
+  ggplot(mapping = aes(df$xa_01, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xa_02, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xa_03, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xa_04, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xa_05, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xa_06, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xa_07, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xa_08, log_response)) + geom_line()
+```
+
+```{r}
+df %>% 
+  ggplot(mapping = aes(df$xw_01, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xw_02, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xw_03, log_response)) + geom_line()
+```
+
+```{r}
+df %>% 
+  ggplot(mapping = aes(df$xs_01, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xs_02, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xs_03, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xs_04, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xs_05, log_response)) + geom_line()
+df %>% 
+  ggplot(mapping = aes(df$xs_06, log_response)) + geom_line()
+
+```
+
+
+# Part 2: Regression - Part A
+
+## Categorical Variables Only - Linear Additive 
+
+```{r}
+mod_categorical <- lm(log_response ~ region + customer + outcome , data = df)
+```
+
+## Continous Variables Only - Linear Additive 
+
+```{r}
+mod_continous <- lm(log_response ~ xb_01 + xb_02 + xb_03 + xn_01 + xn_02 + xn_03 + xa_01 + xa_02 + xa_03 +xb_04 + xb_05
+                    + xb_06 + xb_07 + xb_08 + xn_04 + xn_05 + xn_06 + xn_07 + xn_08 + xa_04 + xa_05 + xa_06 + xa_07 + xa_08 + 
+                      xw_01 + xw_02 + xw_03 + xs_01 + xs_02 + xs_03 + xs_04 + xs_05 + xs_06, data = df) 
+```
+
+
+## All Categorical + Continous inputs - Linear Additive 
+
+```{r}
+mod_cat_cont <- lm(log_response ~ region + customer + outcome +  xb_01 + xb_02 + xb_03 + xn_01 + xn_02 + xn_03 + xa_01 + xa_02 + xa_03 +xb_04 + xb_05 + xb_06 + xb_07 + xb_08 + xn_04 + xn_05 + xn_06 + xn_07 + xn_08 + xa_04 + xa_05 + xa_06 + xa_07 + xa_08 + 
+                      xw_01 + xw_02 + xw_03 + xs_01 + xs_02 + xs_03 + xs_04 + xs_05 + xs_06, data = df) 
+```
+
+## Interacting Categorical Input 'Region' with all continious inputs 
+
+```{r}
+mod_interact_region <- lm(log_response ~ region*xb_01 + region*xb_02 + region*xb_03 + region*xn_01 + region*xn_02 + region*xn_03 + 
+                      region*xa_01 + region*xa_02 + region*xa_03 +region*xb_04 + region*xb_05+ 
+                      region*xb_06 + region*xb_07 + region*xb_08 + region*xn_04 + region*xn_05 + region*xn_06 + region*xn_07 + 
+                      region*xn_08 + region*xa_04 + region*xa_05 + region*xa_06 + region*xa_07 + region*xa_08 + 
+                      region*xw_01 + region*xw_02 + region*xw_03 + region*xs_01 + region*xs_02 + region*xs_03 + region*xs_04 + 
+                      region*xs_05 + region*xs_06, data = df)
+```
+
+
+## Interacting Categorical Input 'Customer' with all continuous inputs 
+
+```{r}
+mod_interact_customer <- lm(log_response ~ customer*xb_01 + customer*xb_02 + customer*xb_03 + customer*xn_01 + customer*xn_02 + customer*xn_03 + 
+                      customer*xa_01 + customer*xa_02 + customer*xa_03 +customer*xb_04 + customer*xb_05+ 
+                      customer*xb_06 + customer*xb_07 + customer*xb_08 + customer*xn_04 + customer*xn_05 + customer*xn_06 + customer*xn_07 + 
+                      customer*xn_08 + customer*xa_04 + customer*xa_05 + customer*xa_06 + customer*xa_07 + customer*xa_08 + 
+                      customer*xw_01 + customer*xw_02 + customer*xw_03 + customer*xs_01 + customer*xs_02 + customer*xs_03 + customer*xs_04 + 
+                      customer*xs_05 + customer*xs_06, data = df)
+```
+
+
+## Examining all pairwise interactions terms of the continuous inputs 
+
+```{r}
+df_continuous <- df[continuous_vars]
+df_continuous$log_response <- df$log_response
+
+mod_pairwise_cont <- lm (log_response ~ (.)^2, data = df_continuous)
+```
+
+
+## Fitting three other basis functions 
+
+### Fitting a spline model with continious xb_07 of 15 df
+```{r}
+mod_lin_quad <- lm(log_response ~ splines::ns(xb_07, 15), data = df_continuous )
+
+```
+
+The input xb_07 seemed be to statistically significant in the previous linear models. 
+
+
+### Fitting linear model with continuous inputs and their qudratic features. 
+
+```{r}
+mod_quadratic <- lm(log_response ~  xb_01 + xb_02 + xb_03 + xn_01 + xn_02 + xn_03 + xa_01 + xa_02 + xa_03 +xb_04 + xb_05 + xb_06 + xb_07 + xb_08 + xn_04 + xn_05 + xn_06 + xn_07 + xn_08 + xa_04 + xa_05 + xa_06 + xa_07 + xa_08 + xw_01 + xw_02 + xw_03 + xs_01 + xs_02 + xs_03 + xs_04 + xs_05 + xs_06 + I(xb_01^2) + I(xb_02^2) + I(xb_03^2) + I(xn_01^2) + I(xn_02^2) + I(xn_03^2) + I(xa_01^2) + I(xa_02^2) + I(xa_03^2) + I(xb_04^2) + I(xb_05^2) + I(xb_06^2) + I(xb_07^2) + I(xb_08^2) + I(xn_04^2) + I(xn_05^2) + I(xn_06^2) + I(xn_07^2) + I(xn_08^2) + I(xa_04^2) + I(xa_05^2) + I(xa_06^2) + I(xa_07^2) + I(xa_08^2) + I(xw_01^2) + I(xw_02^2) + I(xw_03^2) + I(xs_01^2) + I(xs_02^2) + I(xs_03^2) + I(xs_04^2) + I(xs_05^2) + I(xs_06), data = df_continuous) 
+
+mod_quadratic %>% summary()
+```
+
+### Interacting linear and quadratic of three statistically significant variables from continous only linear additive model 
+
+```{r}
+mod_three_signif <- lm (log_response ~ (xb_04 + I(xb_04^2))*(xb_07 + I(xb_07^2)) * (xw_01 + I(xw_01^2)), data = df_continuous )
+```
+
+### Compile Performance Metrics on all 9 models 
+```{r}
+extract_metrics <- function (mod, mod_name)
+{
+  broom::glance(mod) %>% mutate(mod_name = mod_name)
+}
+```
+
+```{r}
+all_metrics <- purrr::map2_dfr(list(mod_continous, mod_categorical,mod_cat_cont, mod_interact_region, mod_interact_customer,mod_pairwise_cont, mod_lin_quad, mod_quadratic, mod_three_signif), as.character(1:9), extract_metrics)
+
+all_metrics 
+```
+
+Using the BIC values, the third model (mod_cat_cont) is the best model. 
+
+
+```{r}
+ggplot(mapping = aes(y = all_metrics$BIC, x = all_metrics$mod_name)) + geom_point() 
+```
+
+
+### Examining the Coefficients of the top three models selected using R-squared. 
+
+```{r}
+mod_cat_cont %>% coefplot::coefplot()
+mod_cat_cont %>% summary()
+```
+
+
+```{r}
+mod_continous %>% coefplot::coefplot()
+mod_continous %>% summary()
+```
+
+I am choosing the simple linear additive model to compare against the  model with both the categorical and continuous predictors because I want to see if the added complexity in the categorical and continous model is actually necessary or if the continuous additive model is sufficient. 
+
+
+# Regression - Part B 
+
+
+### Fitting Bayesian Linear Models 
+
+#### Creating Design Matrix for each of the two models 
+```{r}
+
+Xmat_continuous <- model.matrix(~ xb_01 + xb_02 + xb_03 + xn_01 + xn_02 + xn_03 + xa_01 + xa_02 + xa_03 +xb_04 + xb_05
+                    + xb_06 + xb_07 + xb_08 + xn_04 + xn_05 + xn_06 + xn_07 + xn_08 + xa_04 + xa_05 + xa_06 + xa_07 + xa_08 + 
+                      xw_01 + xw_02 + xw_03 + xs_01 + xs_02 + xs_03 + xs_04 + xs_05 + xs_06, data = df)
+
+Xmat_cat_cont <- model.matrix( ~region + customer + outcome +  xb_01 + xb_02 + xb_03 + xn_01 + xn_02 + xn_03 + xa_01 + xa_02 + xa_03 +xb_04 + xb_05 + xb_06 + xb_07 + xb_08 + xn_04 + xn_05 + xn_06 + xn_07 + xn_08 + xa_04 + xa_05 + xa_06 + xa_07 + xa_08 + 
+                      xw_01 + xw_02 + xw_03 + xs_01 + xs_02 + xs_03 + xs_04 + xs_05 + xs_06, data = df)
+```
+
+#### Create list of information 
+```{r}
+my_info_cat_cont<- list(
+  yobs = df$log_response,
+  design_matrix = Xmat_cat_cont,
+  mu_beta = 0,
+  tau_beta = 1,
+  sigma_rate = 1 
+)
+
+my_info_cont <- list(
+  yobs = df$log_response,
+  design_matrix = Xmat_continuous,
+  mu_beta = 0,
+  tau_beta = 1,
+  sigma_rate = 1 
+)
+```
+
+We will be assuming a weak prior standard deviation on the regression coefficients. The prior mean will be 0. 
+
+
+#### Create Log Posterior Function 
+```{r}
+lm_logpost <- function(unknowns, my_info)
+{
+
+  length_beta <- ncol(my_info$design_matrix)
+  beta_v <- unknowns[1:length_beta]
+
+  lik_varphi <- unknowns[length_beta + 1]
+  lik_sigma <- exp(lik_varphi)
+  
+  X <- my_info$design_matrix
+  mu <- as.vector( X %*% as.matrix(beta_v) )
+  
+  log_lik <- sum(dnorm(x = my_info$yobs,
+                       mean = mu,
+                       sd = lik_sigma,
+                       log = TRUE))
+  
+  log_prior_beta <- sum(dnorm(x = beta_v,
+                              mean = my_info$mu_beta,
+                              sd = my_info$tau_beta,
+                              log = TRUE))
+  
+  log_prior_sigma <- dexp(x = lik_sigma,
+                          rate = my_info$sigma_rate,
+                          log = TRUE)
+  
+  log_prior <- log_prior_beta + log_prior_sigma
+  
+  log_derive_adjust <- lik_varphi
+  
+  log_lik + log_prior + log_derive_adjust
+}
+```
+
+
+
+#### Fitting the Bayesian Linear Models Using Laplace's Approximation 
+```{r}
+my_laplace <- function(start_guess, logpost_func, ...)
+{
+  # code adapted from the `LearnBayes`` function `laplace()`
+  fit <- optim(start_guess,
+               logpost_func,
+               gr = NULL,
+               ...,
+               method = "BFGS",
+               hessian = TRUE,
+               control = list(fnscale = -1, maxit = 1001))
+  
+  
+  mode <- fit$par
+  post_var_matrix <- -solve(fit$hessian)
+  p <- length(mode)
+  int <- p/2 * log(2 * pi) + 0.5 * log(det(post_var_matrix)) + logpost_func(mode, ...)
+  # package all of the results into a list
+  list(mode = mode,
+       var_matrix = post_var_matrix,
+       log_evidence = int,
+       converge = ifelse(fit$convergence == 0,
+                         "YES", 
+                         "NO"),
+       iter_counts = as.numeric(fit$counts[1]))
+  
+  
+}
+```
+
+
+```{r}
+laplace_cont <- my_laplace(rep(0, ncol(Xmat_continuous)+1), lm_logpost, my_info_cont)
+laplace_cat_cont <- my_laplace(rep(0, ncol(Xmat_cat_cont)+1), lm_logpost, my_info_cat_cont)
+```
+
+#### Using Bayes Factor to identify the better of the two models 
+
+```{r}
+exp(laplace_cat_cont$log_evidence) / exp(laplace_cont$log_evidence)
+```
+ 
+ The result of the performance metric, Bayes Factor  is much greater than 1. This indicates that there is more evidence for the model with both categorical and continuous inputs than just the additive linear model with only continuous inputs. 
+ 
+### Visualizing the regression coefficient posterior summary statistics for the best model. 
+ 
+```{r}
+viz_post_coefs <- function(post_means, post_sds, xnames)
+{
+  tibble::tibble(
+    mu = post_means,
+    sd = post_sds,
+    x = xnames
+  ) %>% 
+    mutate(x = factor(x, levels = xnames)) %>% 
+    ggplot(mapping = aes(x = x)) +
+    geom_hline(yintercept = 0, color = 'grey', linetype = 'dashed') +
+    geom_point(mapping = aes(y = mu)) +
+    geom_linerange(mapping = aes(ymin = mu - 2 * sd,
+                                 ymax = mu + 2 * sd,
+                                 group = x)) +
+    labs(x = 'feature', y = 'coefficient value') +
+    coord_flip() +
+    theme_bw()
+}
+```
+ 
+ 
+```{r}
+viz_post_coefs(laplace_cat_cont$mode[1:ncol(Xmat_cat_cont)],
+               sqrt(diag(laplace_cat_cont$var_matrix)[1:ncol(Xmat_cat_cont)]),
+               colnames(Xmat_cat_cont))
+```
+ 
+ 
+ 
+```{r}
+mod_cat_cont %>% summary()
+```
+
+
+#### POSTERIOR UNCERTAINITY ON SIGMA 
+
+
+### Regression - Part C
+#### Making predictions 
+
+```{r}
+generate_lm_post_samples <- function(mvn_result, length_beta, num_samples)
+{
+  MASS::mvrnorm(n = num_samples,
+                mu = mvn_result$mode,
+                Sigma = mvn_result$var_matrix) %>% 
+    as.data.frame() %>% tibble::as_tibble() %>% 
+    purrr::set_names(c(sprintf("beta_%02d", 0:(length_beta-1)), "varphi")) %>% 
+    mutate(sigma = exp(varphi))
+}
+```
+
+
+```{r}
+set.seed(87123)
+post_samples_cont <- generate_lm_post_samples(laplace_cont, ncol(Xmat_continuous), 2500)
+post_samples_cat_cont <- generate_lm_post_samples(laplace_cat_cont, ncol(Xmat_cat_cont), 2500)
+
+```
+
+
+
+```{r}
+post_lm_pred_samples <- function(Xnew, Bmat, sigma_vector)
+{
+  # number of new prediction locations
+  M <- nrow(Xnew)
+  # number of posterior samples
+  S <- nrow(Bmat)
+  
+  # matrix of linear predictors
+  Umat <- Xnew %*% t(Bmat)
+  
+  # assmeble matrix of sigma samples
+  Rmat <- matrix(rep(sigma_vector, M), M, byrow = TRUE)
+  
+  # generate standard normal and assemble into matrix
+  Zmat <- matrix(rnorm(M*S), M, byrow = TRUE)
+  
+  # calculate the random observation predictions
+  Ymat <- Umat + Rmat * Zmat
+  
+  # package together
+  list(Umat = Umat, Ymat = Ymat)
+}
+```
+
+
+
+
+```{r}
+make_post_lm_pred <- function(Xnew, post)
+{
+  Bmat <- post %>% select(starts_with("beta_")) %>% as.matrix()
+  
+  sigma_vector <- post %>% pull(sigma)
+  
+  post_lm_pred_samples(Xnew, Bmat, sigma_vector)
+}
+```
+
+#### Generate Posterior predictions on the linear additive model with only continous inputs 
+
+```{r}
+post_pred_samples_cont <- make_post_lm_pred(Xmat_continuous,
+                                            post_samples_cont)
+
+```
+
+
+#### Generate Posterior predictions on the linear additive model with categorical and  continous inputs 
+
+
+```{r}
+post_pred_samples_cont <- make_post_lm_pred(Xmat_cat_cont,
+                                            post_samples_cat_cont)
+
+```
+
+
+
+```{r}
+tidy_predict <- function(mod, xnew)
+{
+  pred_df <- predict(mod, xnew, interval = "confidence") %>% 
+    as.data.frame() %>% tibble::as_tibble() %>% 
+    dplyr::select(pred = fit, ci_lwr = lwr, ci_upr = upr) %>% 
+    bind_cols(predict(mod, xnew, interval = 'prediction') %>% 
+                as.data.frame() %>% tibble::as_tibble() %>% 
+                dplyr::select(pred_lwr = lwr, pred_upr = upr))
+  
+  xnew %>% bind_cols(pred_df)
+}
+```
+
+
+```{r}
+pred_cont <- tidy_predict(mod_continous, df)
+pred_cat_cont <- tidy_predict(mod_cat_cont, df)
+```
+
+
+#### Visualizing Predictive Trends
+
+
+
+```{r}
+pred_cat_cont %>% 
+  ggplot(mapping = aes(x = xb_04)) +
+  geom_ribbon(mapping = aes(ymin = pred_lwr,
+                            ymax = pred_upr),
+              fill = 'orange') +
+  geom_ribbon(mapping = aes(ymin = ci_lwr,
+                            ymax = ci_upr),
+              fill = 'grey') +
+  geom_line(mapping = aes(y = pred),
+            color = 'black', size = 1.2) +
+  geom_point(data = df,
+             mapping = aes(x = xb_04, y = pred_cont$pred),
+             color = 'red', size = 2) +
+  facet_wrap(~region) +
+  theme_bw()
+```
+
+```{r}
+xw_01_vals <- pred_cont['xw_01']
+min <- min(xw_01_vals)
+max <- max(xw_01_vals)
+mean <- (min + max) /2
+
+
+med_0.25 <- (min + mean) /2
+med_0.75 <- (mean + max) /2 
+levels <- c(min, med_0.25, mean, med_0.75, max)
+levels_spaced <- rep(levels, each = nrow(df)/5)
+levels_spaced[length(levels_spaced) + 1]  = levels_spaced[length(levels_spaced) ]
+levels_spaced[length(levels_spaced) + 1]  = levels_spaced[length(levels_spaced) ]
+pred_cont['levels'] = as.factor(levels_spaced)
+```
+
+
+
+```{r}
+pred_cont %>% 
+  ggplot(mapping = aes(x = xb_04)) +
+  geom_ribbon(mapping = aes(ymin = pred_lwr,
+                            ymax = pred_upr,
+                            group = pred_cont$levels),
+              fill = 'orange') +
+  geom_ribbon(mapping = aes(ymin = ci_lwr,
+                            ymax = ci_upr,
+                            group = pred_cont$levels),
+              fill = 'grey') +
+  geom_line(mapping = aes(y = pred_cont$pred,
+                            group = pred_cont$levels),
+            color = 'black', size = 1.2) +
+  geom_point(data = df,
+             mapping = aes(x = xb_04, y = pred_cont$pred),
+             color = 'red', size = 2) + facet_wrap(~pred_cont$levels) +
+  theme_bw()
+```
+
+In the second plot, the plot is faceted with the variable xw_01. 
+The predictions look pretty consistent. They majority of the data points are between 0 and 2. 
+
+
+### Regresiion - Part D
+
+#### Training Linear Models 
+
+```{r}
+df_reg <- df %>% 
+  select(region, customer, starts_with('x'), log_response)
+```
+
+```{r}
+my_metric <- "RMSE"
+my_ctrl <- trainControl(method = "repeatedcv" , number = 5, repeats = 5, my_metric)
+```
+
+
+##### All categorical and continuous inputs (also model selected from Part A)
+```{r}
+cat_cont_tune <- caret::train(log_response ~  ., data = df_reg, method = 'lm' , metric = my_metric, 
+                        preProcess = c('center','scale'), trControl = my_ctrl)
+```
+
+##### All pairwise interactions of continuous inputs and additive categorical features 
+```{r}
+pairwise_tune <- caret::train(log_response ~ (.)^2 + region + customer ,data = df_reg, method = 'lm', metric = my_metric, 
+                        preProcess = c('center','scale'), trControl = my_ctrl)
+```
+
+##### Training the second model from Regression Part A (mod_continuous)
+
+```{r}
+continuous_tune <- caret::train(log_response ~ . ,data = df_continuous, method = 'lm', metric = my_metric, 
+                        preProcess = c('center','scale'), trControl = my_ctrl)
+
+continuous_tune
+```
+
+#### Regularized Regression with Elastic Net - Using glmnet
+
+##### All pairwise interactions of continuous inputs including additive categorical features 
+
+
+```{r}
+pairwise_enet <-  caret::train(log_response ~ (.)^2 + region + customer ,data = df_reg, method = 'glmnet', metric = my_metric, 
+                        preProcess = c('center','scale'), trControl = my_ctrl)
+
+```
+
+
+##### Regularized Regression with Elastic Net - mod_cat_cont
+
+```{r}
+mod_cat_cont_enet <-  caret::train(log_response ~  .,data = df_reg, method = 'glmnet', metric = my_metric, 
+                        preProcess = c('center','scale'), trControl = my_ctrl)
+
+```
+
+
+##### Using Neural Network to Train, Tune and Evaluate the mod_cat_cont model 
+
+```{r}
+my_metric <- "RMSE"
+my_ctrl <- trainControl(method = "repeatedcv" , number = 5, repeats = 5, my_metric)
+```
+
+```{r}
+set.seed(4321)
+fit_nnet<- train(log_response ~ ., 
+                        data = df_reg,  method = "nnet",  metric = my_metric, trControl = my_ctrl,
+                        preProcess = c('center', 'scale'),
+                        trace = FALSE)
+
+```
+
+
+##### Using Random Forest to Train, evaluate, and tune the mod_cat_cont model. 
+
+```{r}
+set.seed(4321)
+
+fit_rf <- train(log_response ~ ., 
+                        data = df_reg,  method = "rf",  metric = my_metric, trControl = my_ctrl,
+                trace = FALSE)
+
+```
+
+
+##### Using Extrem Gradient Boosted Tree to Train, evaluate, and tune the mod_cat_cont model. 
+```{r}
+set.seed(4321)
+fit_xgb <- train(log_response ~. ,
+                        data = df_reg, method = 'xgbTree', metric = my_metric, trControl = my_ctrl,  preProcess = c('center', 'scale'), verbosity = 0)
+```
+
+
+##### Using Partial Least Squares to Train, evaluate, and tune the mod_cat_cont model. 
+```{r}
+set.seed(4321)
+fit_pls <- train(log_response ~ ., 
+                        data = df_reg,  method = "pls",  metric = my_metric, trControl = my_ctrl,
+                        preProcess = c('center', 'scale'), importance = TRUE, 
+                        trace = FALSE)
+
+```
+
+##### Using KNN to Train, evaluate, and tune the mod_cat_cont model.
+```{r}
+fit_knn <- train(log_response ~ ., 
+                        data = df_reg,  method = "knn",  metric = my_metric, trControl = my_ctrl,
+                        preProcess = c('center', 'scale'))
+
+```
+
+
+Using the preprocessing options of centering and scaling, using RMSE for the performance metric, and 5 fold CV repeated 5 times, the best model 
+
+```{r}
+cat_cont_tune
+pairwise_tune
+pairwise_enet
+fit_nnet
+fit_rf
+fit_xgb
+fit_pls
+fit_knn
+```
+
+
+When trained, tuned, and evaluated the best model is The pairwise interactions tuned through elastic net. 
+
+### Part 3 - Classification Part A
+
+#### Creating binary outcome column based on outcome column 
+
+```{r}
+df['numeric_outcome'] <- ifelse(df$outcome == 'event', 1, 0)
+df_class <- df %>% 
+  mutate(outcome = factor(outcome, levels = c("event", "non_event"))) %>% 
+  mutate(numeric_outcome = factor(numeric_outcome, levels = c(1,0)))
+```
+
+
+
+```{r}
+glm_categorical <- glm(outcome ~ region + customer + outcome , data = df_class, family = "binomial")
+
+```
+
+With a model just containing the categorical variables of customer and region, the variables that are statistically significant are 
+regionZZ, customerB, customerD, customerE, customerOther. 
+
+## Continous Variables Only - Linear Additive 
+
+```{r}
+glm_continous <- glm(outcome ~ xb_01 + xb_02 + xb_03 + xn_01 + xn_02 + xn_03 + xa_01 + xa_02 + xa_03 +xb_04 + xb_05
+                    + xb_06 + xb_07 + xb_08 + xn_04 + xn_05 + xn_06 + xn_07 + xn_08 + xa_04 + xa_05 + xa_06 + xa_07 + xa_08 + 
+                      xw_01 + xw_02 + xw_03 + xs_01 + xs_02 + xs_03 + xs_04 + xs_05 + xs_06, data = df_class, family = "binomial") 
+
+```
+
+Most of the continuous inputs are not statistically significant to the binary outcome. The inputs that are considered to be significant are xn_03, xa_01, xb_07, xn_04, xn_05,xn_07, xn_08, xa_05, xw_03 .The intercept of the model is also significant. 
+
+## All Categorical + Continous inputs - Linear Additive 
+
+```{r}
+glm_cat_cont <- glm(outcome ~ region + customer + outcome +  xb_01 + xb_02 + xb_03 + xn_01 + xn_02 + xn_03 + xa_01 + xa_02 + xa_03 +xb_04 + xb_05 + xb_06 + xb_07 + xb_08 + xn_04 + xn_05 + xn_06 + xn_07 + xn_08 + xa_04 + xa_05 + xa_06 + xa_07 + xa_08 + 
+                      xw_01 + xw_02 + xw_03 + xs_01 + xs_02 + xs_03 + xs_04 + xs_05 + xs_06, data = df_class, family = "binomial") 
+
+```
+
+## Interacting Categorical Input 'Region' with all continious inputs 
+
+```{r}
+glm_interact_region <- glm(outcome ~ region*xb_01 + region*xb_02 + region*xb_03 + region*xn_01 + region*xn_02 + region*xn_03 + 
+                      region*xa_01 + region*xa_02 + region*xa_03 +region*xb_04 + region*xb_05+ 
+                      region*xb_06 + region*xb_07 + region*xb_08 + region*xn_04 + region*xn_05 + region*xn_06 + region*xn_07 + 
+                      region*xn_08 + region*xa_04 + region*xa_05 + region*xa_06 + region*xa_07 + region*xa_08 + 
+                      region*xw_01 + region*xw_02 + region*xw_03 + region*xs_01 + region*xs_02 + region*xs_03 + region*xs_04 + 
+                      region*xs_05 + region*xs_06, data = df_class, family = "binomial")
+
+```
+
+
+## Interacting Categorical Input 'Customer' with all continuous inputs 
+
+```{r}
+glm_interact_customer <- glm(outcome ~ customer*xb_01 + customer*xb_02 + customer*xb_03 + customer*xn_01 + customer*xn_02 + customer*xn_03 + 
+                      customer*xa_01 + customer*xa_02 + customer*xa_03 +customer*xb_04 + customer*xb_05+ 
+                      customer*xb_06 + customer*xb_07 + customer*xb_08 + customer*xn_04 + customer*xn_05 + customer*xn_06 + customer*xn_07 + 
+                      customer*xn_08 + customer*xa_04 + customer*xa_05 + customer*xa_06 + customer*xa_07 + customer*xa_08 + 
+                      customer*xw_01 + customer*xw_02 + customer*xw_03 + customer*xs_01 + customer*xs_02 + customer*xs_03 + customer*xs_04 + 
+                      customer*xs_05 + customer*xs_06, data = df_class, family = "binomial")
+```
+
+
+
+## Examining all pairwise interactions terms of the continuous inputs
+
+```{r}
+df_continuous <- df_continuous[-length(df_continuous)]
+df_continuous['numeric_outcome'] <- df$numeric_outcome
+df_continuous['log_response'] <- df$log_response
+
+```
+
+
+```{r}
+glm_pairwise_cont <- glm (numeric_outcome ~ (.)^2, data = df_continuous, family = "binomial")
+```
+
+
+## Fitting three other basis functions 
+
+### Fitting a spline model with continious xb_03 of 15 df
+```{r}
+df_continuous['outcome'] <- df_class$outcome
+glm_spline <- glm(outcome ~ splines::ns(xw_03, 15), data = df_continuous, family = "binomial" )
+
+```
+
+The input xb_07 seemed be to statistically significant in the previous linear models. 
+
+
+### Fitting linear model with continuous inputs and their qudratic features. 
+
+```{r}
+glm_quadratic <- glm(outcome ~  xb_01 + xb_02 + xb_03 + xn_01 + xn_02 + xn_03 + xa_01 + xa_02 + xa_03 +xb_04 + xb_05 + xb_06 + xb_07 + xb_08 + xn_04 + xn_05 + xn_06 + xn_07 + xn_08 + xa_04 + xa_05 + xa_06 + xa_07 + xa_08 + xw_01 + xw_02 + xw_03 + xs_01 + xs_02 + xs_03 + xs_04 + xs_05 + xs_06 + I(xb_01^2) + I(xb_02^2) + I(xb_03^2) + I(xn_01^2) + I(xn_02^2) + I(xn_03^2) + I(xa_01^2) + I(xa_02^2) + I(xa_03^2) + I(xb_04^2) + I(xb_05^2) + I(xb_06^2) + I(xb_07^2) + I(xb_08^2) + I(xn_04^2) + I(xn_05^2) + I(xn_06^2) + I(xn_07^2) + I(xn_08^2) + I(xa_04^2) + I(xa_05^2) + I(xa_06^2) + I(xa_07^2) + I(xa_08^2) + I(xw_01^2) + I(xw_02^2) + I(xw_03^2) + I(xs_01^2) + I(xs_02^2) + I(xs_03^2) + I(xs_04^2) + I(xs_05^2) + I(xs_06), data = df_continuous, family = 'binomial') 
+
+```
+
+### Interacting linear and quadratic of three statistically significant variables from continous only linear additive model 
+
+```{r}
+glm_three_signif <- glm (outcome ~ (xw_03 + I(xw_03^2))*(xn_07 + I(xn_07^2)) * (xn_08+ I(xn_08^2)), data = df_continuous, family = "binomial" )
+```
+
+
+These models are mostly consistent with the regression portion, with some varying differences in variable significance. THere were some warning messages that 
+fitted probabilities were numerically 0 or 1 occurred. 
+
+#### Extracting Metrics from the 9 GLM models to determine the best models. 
+```{r}
+extract_metrics <- function (mod, mod_name)
+{
+  broom::glance(mod) %>% mutate(mod_name = mod_name)
+}
+```
+
+```{r}
+all_metrics <- purrr::map2_dfr(list(glm_continous, glm_categorical, glm_cat_cont, glm_interact_region, glm_interact_customer,glm_pairwise_cont, glm_spline, glm_quadratic, glm_three_signif), as.character(1:9), extract_metrics)
+
+all_metrics 
+```
+
+Using BIC again, the best model is model 1 -- model with all continuous inputs. 
+The top three models are model 1, 9, 3 (glm_continuous, glm_three_signif, glm_cat_cont)
+
+```{r}
+ggplot(mapping = aes(y = all_metrics$BIC, x = all_metrics$mod_name)) + geom_point() 
+```
+
+
+
+#### Visualizing the coefficient summaries of the top three models. 
+
+
+```{r}
+glm_continous %>% coefplot::coefplot()
+glm_continous %>% summary()
+```
+
+```{r}
+glm_three_signif %>% coefplot::coefplot()
+glm_three_signif %>% summary()
+```
+
+```{r}
+glm_cat_cont %>% coefplot::coefplot()
+glm_cat_cont %>% summary()
+```
+
+In the models with the continuous inputs, xw_03 is significant. 
+Region ZZ, customerB, customerD, customerE ar significant in the models that contain the categorical inputs. 
+
+xw_03, Region ZZ, customerB, customerD, customerE seem to be important. 
+
+
+### Classification Part B
+
+#### Fitting Bayesian Genralized Linear Models 
+
+Model 1: glm_continuous 
+Model 2: glm_cat_cont
+The reason for picking the second model is, I want to see if the categorical inputs are necessary when compared to the model with only continuous inputs and I also want to compare it to the linear regression model. 
+
+
+```{r}
+logistic_logpost <- function(unknowns, my_info)
+{
+  X <- my_info$design_matrix
+  
+  length_beta <- ncol(my_info$design_matrix)
+  beta_v <- unknowns[1:length_beta]
+  
+
+  eta <- as.vector(X %*% as.matrix(beta_v))
+  
+  mu <- boot::inv.logit(eta)
+
+  log_lik <- sum(dbinom(x = my_info$yobs,
+                 size = 1,
+                 prob = mu,
+                 log = TRUE))
+  
+  log_prior <- sum(dnorm(x =beta_v,
+                          mean = my_info$mu_beta,
+                          sd = my_info$tau_beta,
+                          log = TRUE))
+  
+  log_lik + log_prior 
+}
+```
+
+
+Create Design Matrix for the two models 
+```{r}
+Xmat_cat_cont<-model.matrix( outcome~ region + customer  +  xb_01 + xb_02 + xb_03 + xn_01 + xn_02 + xn_03 + xa_01 + xa_02 + xa_03 +xb_04 + xb_05 + xb_06 + xb_07 + xb_08 + xn_04 + xn_05 + xn_06 + xn_07 + xn_08 + xa_04 + xa_05 + xa_06 + xa_07 + xa_08 + 
+                      xw_01 + xw_02 + xw_03 + xs_01 + xs_02 + xs_03 + xs_04 + xs_05 + xs_06, data = df)
+
+Xmat_continuous <- model.matrix( outcome ~ xb_01 + xb_02 + xb_03 + xn_01 + xn_02 + xn_03 + xa_01 + xa_02 + xa_03 +xb_04 + xb_05 + xb_06 + xb_07 + xb_08 + xn_04 + xn_05 + xn_06 + xn_07 + xn_08 + xa_04 + xa_05 + xa_06 + xa_07 + xa_08 + 
+                      xw_01 + xw_02 + xw_03 + xs_01 + xs_02 + xs_03 + xs_04 + xs_05 + xs_06, data = df)
+```
+
+
+```{r}
+df['numeric_outcome'] <- ifelse(df$outcome == 'event', 1, 0)
+cat_cont_info <- list(
+  yobs = df$numeric_outcome,
+  design_matrix = Xmat_cat_cont,
+  mu_beta = 0,
+  tau_beta = 1
+)
+
+cont_info <- list(
+  yobs = df$numeric_outcome,
+  design_matrix = Xmat_continuous,
+  mu_beta = 0,
+  tau_beta = 1
+)
+```
+
+
+
+```{r}
+my_laplace <- function(start_guess, logpost_func, ...)
+{
+  # code adapted from the `LearnBayes`` function `laplace()`
+  fit <- optim(start_guess,
+               logpost_func,
+               gr = NULL,
+               ...,
+               method = "BFGS",
+               hessian = TRUE,
+               control = list(fnscale = -1, maxit = 1001))
+  
+  mode <- fit$par
+  post_var_matrix <- -solve(fit$hessian)
+  p <- length(mode)
+  int <- p/2 * log(2 * pi) + 0.5 * log(det(post_var_matrix)) + logpost_func(mode, ...)
+  # package all of the results into a list
+  list(mode = mode,
+       var_matrix = post_var_matrix,
+       log_evidence = int,
+       converge = ifelse(fit$convergence == 0,
+                         "YES", 
+                         "NO"),
+       iter_counts = as.numeric(fit$counts[1]))
+}
+```
+
+
+#### Execute the Laplace Approximation to fit the glm models
+```{r}
+laplace_cat_cont <- my_laplace(rep(0,ncol(Xmat_cat_cont)), logistic_logpost, cat_cont_info)
+laplace_cont <- my_laplace(rep(0,ncol(Xmat_continuous)), logistic_logpost, cont_info)
+```
+
+##### Determining which model is best using Bayes Factor. 
+```{r}
+exp(laplace_cat_cont$log_evidence) / exp(laplace_cont$log_evidence)
+```
+
+The result of the Bayes Factor shows that there is more evidence for the continuous model, as opposed to the model with both the categorical and continuous model. 
+
+
+#### Vizualizing the regession coefficient posterior summary statsitics for the model with continuous additive inputs 
+
+```{r}
+viz_post_coefs(laplace_cont$mode[1:ncol(Xmat_continuous)],
+               sqrt(diag(laplace_cont$var_matrix)[1:ncol(Xmat_continuous)]),
+               colnames(Xmat_continuous))
+```
+
+### Classifcation Part C
+
+```{r}
+generate_glm_post_samples <- function(mvn_result, num_samples)
+{
+  length_beta <- length(mvn_result$mode)
+  
+  beta_samples <- MASS::mvrnorm(n = num_samples, 
+                                mu = mvn_result$mode, 
+                                Sigma = mvn_result$var_matrix)
+
+  beta_samples %>% 
+    as.data.frame() %>% tibble::as_tibble() %>% 
+    purrr::set_names(sprintf("beta_%02d", (1:length_beta) - 1))
+}
+```
+
+
+```{r}
+post_logistic_pred_samples <- function(Xnew, Bmat)
+{
+  eta_mat <- Xnew %*% t(Bmat)
+  mu_mat <- boot::inv.logit(eta_mat)
+
+  list(eta_mat = eta_mat, mu_mat = mu_mat)
+}
+```
+
+
+
+```{r}
+summarize_logistic_pred_from_laplace <- function(mvn_result, Xtest, num_samples)
+{
+  betas <- generate_glm_post_samples(mvn_result, num_samples)
+
+  betas <- as.matrix(betas)
+
+  pred_test <- post_logistic_pred_samples(Xtest, betas)
+  
+  mu_avg <- rowMeans(pred_test$mu_mat)
+  
+  mu_q05 <- apply(pred_test$mu_mat, 1, stats::quantile, probs = 0.05)
+  mu_q95 <- apply(pred_test$mu_mat, 1, stats::quantile, probs = 0.95)
+  
+  tibble::tibble(
+    mu_avg = mu_avg,
+    mu_q05 = mu_q05,
+    mu_q95 = mu_q95
+  ) %>% 
+    tibble::rowid_to_column("pred_id")
+}
+```
+
+
+#### Make predictions on generated posterior samples and summarize 
+```{r}
+continuous_post_pred <- summarize_logistic_pred_from_laplace(laplace_cont, Xmat_continuous, 2500)
+cat_cont_post_pred <- summarize_logistic_pred_from_laplace(laplace_cat_cont, Xmat_cat_cont, 2500)
+```
+
+### Visualize predictive trends 
+
+
+```{r}
+  cat_cont_post_pred %>% 
+    left_join(df %>% tibble::rowid_to_column("pred_id"),
+              by = "pred_id") %>% 
+    mutate(event_prob = ifelse(mu_avg > 0.5, 1, 0)) %>% 
+    ggplot(mapping = aes(x = xw_03)) +
+    geom_ribbon(mapping = aes(ymin = mu_q05,
+                              ymax = mu_q95),
+                fill = "steelblue", alpha = 0.5) +
+    geom_line(mapping = aes(y = mu_avg),
+              color = "navyblue", size = 1.15) +
+    geom_point(mapping = aes(y = event_prob),
+               size = 2.5, alpha = 0.2) +
+    facet_grid(~region)
+    theme_bw()
+```
+
+
+
+
+```{r}
+xn_03_vals <- pred_cont['xn_03']
+min <- min(xn_03_vals)
+max <- max(xn_03_vals)
+mean <- (min + max) /2
+
+
+med_0.25 <- (min + mean) /2
+med_0.75 <- (mean + max) /2 
+levels <- c(min, med_0.25, mean, med_0.75, max)
+levels_spaced <- rep(levels, each = nrow(df)/5)
+levels_spaced[length(levels_spaced) + 1]  = levels_spaced[length(levels_spaced) ]
+levels_spaced[length(levels_spaced) + 1]  = levels_spaced[length(levels_spaced) ]
+continuous_post_pred['levels'] = as.factor(levels_spaced)
+continuous_post_pred
+```
+
+
+```{r}
+continuous_post_pred %>% 
+  left_join(df %>% tibble::rowid_to_column("pred_id"),
+            by = "pred_id") %>% 
+  mutate(event_prob = ifelse(mu_avg > 0.5, 1, 0)) %>% 
+  ggplot(mapping = aes(x = xw_03)) +
+  geom_ribbon(mapping = aes(ymin = mu_q05,
+                            ymax = mu_q95,
+                            group = continuous_post_pred$levels),
+              fill = "steelblue", alpha = 0.5) +
+  geom_line(mapping = aes(y = mu_avg,
+                            group = continuous_post_pred$levels),
+            color = "navyblue", size = 1.15) +
+  geom_point(mapping = aes(y = event_prob,
+                            group = continuous_post_pred$levels),
+             size = 2.5, alpha = 0.2) +
+  facet_grid(~continuous_post_pred$levels)
+  theme_bw()
+```
+
+
+The predictive trends are somewhat consistent between the two models. When xw_03 ≥ 60 there is a higher chance that the predicted class is event. When xw_03 is between 30 and 60 it is more likely that the class predicted is a non-event. 
+
+
+### Classification - Part D 
+#### Training, Tuning, Evaluation Generalized Linear Models 
+
+```{r}
+df_class <- df %>% 
+  select(region, customer, starts_with('x'), outcome)
+```
+
+
+```{r}
+metric_acc <- "Accuracy"
+
+my_ctrl_acc <- trainControl(method = "repeatedcv" , number = 5, repeats = 5, metric_acc, classProbs = TRUE)
+my_ctrl_roc <- trainControl(method = "repeatedcv" , number = 5, repeats = 5, summaryFunction = twoClassSummary, classProbs = TRUE)
+```
+
+
+```{r}
+cat_cont_tune_acc <- caret::train(outcome ~  ., data = df_class, method = 'glm' , metric = metric_acc, 
+                                preProcess = c('center','scale'), trControl = my_ctrl_acc)
+
+cat_cont_tune_roc <- caret::train(outcome ~  ., data = df_class, method = 'glm' , 
+                                preProcess = c('center','scale'), trControl = my_ctrl_roc)
+
+```
+
+
+
+##### All pairwise interactions of continuous inputs and additive categorical features 
+```{r}
+pairwise_tune_acc <- caret::train(outcome ~ (.)^2 + region + customer ,data = df_class, method = 'glm', metric = metric_acc, 
+                        preProcess = c('center','scale'), trControl = my_ctrl_acc)
+
+
+pairwise_tune_roc <- caret::train(outcome ~ (.)^2 + region + customer ,data = df_class, method = 'glm', 
+                        preProcess = c('center','scale'), trControl = my_ctrl_roc)
+```
+
+##### Training the second model from Regression Part A (mod_continuous)
+Second model from Part A is the same as the cat_cont_tune
+
+```{r}
+continuous_tune_acc <- caret::train(outcome ~ .,data = df_class, method = 'glm', metric = metric_acc, 
+                        preProcess = c('center','scale'), trControl = my_ctrl_acc)
+
+continuous_tune_roc <- caret::train(outcome ~ .,data = df_class, method = 'glm', 
+                        preProcess = c('center','scale'), trControl = my_ctrl_roc)
+
+```
+
+#### Regularized Logistic Regression with Elastic Net
+
+##### All pairwise interactions of continuous inputs, including categorical features 
+
+```{r}
+pairwise_tune_acc_enet <- caret::train(outcome ~ (.)^2 + region + customer ,data = df_class, method = 'glmnet', metric = metric_acc, 
+                        preProcess = c('center','scale'), trControl = my_ctrl_acc)
+
+pairwise_tune_roc_enet <- caret::train(outcome ~ (.)^2 + region + customer ,data = df_class, method = 'glmnet',  
+                        preProcess = c('center','scale'), trControl = my_ctrl_roc)
+
+```
+
+###### More complex of the top two models - Categorical + Continuous inputs 
+
+```{r}
+cat_cont_tune_acc_enet <- caret::train(outcome ~  ., data = df_class, method = 'glmnet' , metric = metric_acc, 
+                                preProcess = c('center','scale'), trControl = my_ctrl_acc)
+
+cat_cont_tune_roc_enet <- caret::train(outcome ~  ., data = df_class, method = 'glmnet' , 
+                                preProcess = c('center','scale'), trControl = my_ctrl_roc)
+
+```
+
+
+##### Using Neural Network to Train, evaluate, and tune the glm_cat_cont model. 
+
+```{r}
+set.seed(4321)
+
+fit_nnet_acc <- train(outcome ~ ., 
+                        data = df_class,  method = "nnet", metric = metric_acc,  trControl = my_ctrl_roc,
+                        preProcess = c('center', 'scale'),
+                        trace = FALSE)
+
+
+fit_nnet_roc <- train(outcome ~ ., 
+                        data = df_class,  method = "nnet",   trControl = my_ctrl_roc,
+                        preProcess = c('center', 'scale'),
+                        trace = FALSE)
+
+```
+
+
+##### Using Random Forest to Train, evaluate, and tune the glm_cat_cont model. 
+
+```{r}
+set.seed(4321)
+
+fit_rf_acc <- train(outcome ~ ., 
+                        data = df_class,  method = "rf",  metric = metric_acc, trControl = my_ctrl_acc ,trace = FALSE)
+
+fit_rf_roc <- train(outcome ~ ., 
+                        data = df_class,  method = "rf", trControl = my_ctrl_roc ,trace = FALSE)
+
+```
+
+
+##### Using Extrem Gradient Boosted Tree to Train, evaluate, and tune the glm_cat_cont model. 
+```{r}
+set.seed(4321)
+fit_xgb_acc <- train(outcome ~ ., 
+                        data = df_class, method = 'xgbTree', metric = metric_acc, trControl = my_ctrl_acc,  preProcess = c('center', 'scale'), verbosity = 0)
+
+fit_xgb_roc <- train(outcome ~ ., 
+                        data = df_class, method = 'xgbTree', trControl = my_ctrl_roc,  preProcess = c('center', 'scale'), verbosity = 0)
+
+```
+
+
+##### Using SVM to Train, evaluate, and tune the glm_cat_cont model. 
+```{r}
+set.seed(4321)
+fit_pls_acc <- train(outcome ~ .,  data = df_class,  method = "pls",  metric = metric_acc, 
+                     trControl = my_ctrl_acc,
+                        preProcess = c('center', 'scale'),
+                        trace = FALSE)
+
+fit_pls_roc <- train(outcome ~ ., 
+                        data = df_class,  method = "pls",   trControl = my_ctrl_roc,
+                        preProcess = c('center', 'scale'), importance = TRUE, 
+                        trace = FALSE)
+
+```
+
+##### Using KNN to Train, evaluate, and tune the glm_cat_cont model.
+```{r}
+fit_knn_acc <- train(outcome ~ ., 
+                        data = df_class,  method = "knn",  metric = metric_acc, trControl = my_ctrl_acc,
+                        preProcess = c('center', 'scale'))
+
+fit_knn_roc <- train(outcome ~ ., 
+                        data = df_class,  method = "knn",  trControl = my_ctrl_roc,
+                        preProcess = c('center', 'scale'))
+
+```
+
+
+
+
+```{r}
+cat_cont_tune_acc
+pairwise_tune_acc
+pairwise_tune_acc_enet
+fit_nnet_acc
+fit_rf_acc
+fit_xgb_acc
+fit_pls_acc
+fit_knn_acc
+
+```
+```{r}
+cat_cont_tune_roc
+pairwise_tune_roc
+pairwise_tune_roc_enet
+fit_nnet_roc
+fit_rf_roc  
+fit_xgb_roc
+fit_pls_roc
+fit_knn_roc
+```
+
+The model that maximizes the accuracy is the categorical and continuous inputs trained through partial least squares.
+The model that maximizes the ROC is also the categorical and continuous inputs trained through partial least squares. 
+
+
+
+### Interpretation - Part A
+
+* When trained, tuned, and evaluated the best model is The pairwise interactions tuned through elastic net. 
+* For the classification models, the model that was selected based on Accuracy and AUC ROC is the model with the categoerical and continuous inputs trained via Partial Least Squares. 
+
+#### Identifying the most important variables associated with the best performing regression and classification models 
+```{r}
+plot(varImp(pairwise_enet), top = 5)
+plot(varImp(fit_pls_acc), top = 5)
+```
+For the regression pairwise model tuned through elastic net xw_01 is the most important variable. 
+For the classification RF, the most important variable is xn_01
+
+The important features between the regression and classification models are not very consistent with each other. 
+
+
+The model results are okay. They had a very high performance on the test metric but I feel as though based on that and the sentiment contributions, that they are not actually that useful. It seems that the most important feature is the response type. 
+
+
+
+#### Read in Hold-out set
+```{r}
+holdout <- readr::read_csv('final_project_holdout_inputs.csv', col_names = TRUE)
+holdout_inputs <- holdout %>% 
+  select(-rowid)
+```
+
+#### Predict using Pairwise Elastic Net - Regression 
+
+```{r}
+predict_reg <- predict(pairwise_enet, holdout_inputs)
+```
+
+#### Predict using Partial Least Squares - Classification
+```{r}
+predict_class <- predict(fit_pls_acc, holdout_inputs)
+predict_class_prob <- predict(fit_pls_acc, holdout_inputs, type = 'prob')
+head(predict_class_prob)
+```
+
+### Compile Predictions
+```{r}
+my_preds <- tibble::tibble(
+  y = predict_reg,
+  outcome = predict_class
+) %>% 
+  bind_cols(
+    predict_class_prob %>% 
+      select(probability = event)
+  ) %>% 
+  tibble::rowid_to_column('id')
+
+head(my_preds)
+```
+
+```{r}
+my_preds %>% 
+  readr::write_csv('Boppana_Sameera_preds.csv', col_names = TRUE)
+```
+
+
+
+#### Determining the hardest customer to predict 
+
+```{r}
+holdout$predict_reg <- predict_reg
+holdout$predict_class <- predict_class
+
+customer <- data.frame(cbind(holdout$customer, holdout$predict_reg, holdout$predict_class))
+colnames(customer) <- c("customer", "pred_reg", "pred_class")
+customer <- customer %>% mutate(pred_class = ifelse(pred_class == 2, "non_event", "event"))
+customer$true_class <- ifelse(predict_reg > 0.5, "event", "non_event")
+customer %>% group_by(customer) %>% 
+  count(pred_class == true_class)
+
+```
+
+
+The most amount of missclassifications is from Customer "Other". Since this customer group had the most amount of missclassications, this is the hardest customer to predict. 
+
+
+#### Visuzaling prediction trends with the hardest to classify customer group (Other) with the most important derived feature xn_01
+
+
+```{r}
+hardest_customer <- holdout[holdout$customer == 'Other',]
+
+xn_01_vals <- hardest_customer['xn_01']
+min <- min(xn_01_vals)
+max <- max(xn_01_vals)
+mean <- (min + max) /2
+
+
+med_0.25 <- (min + mean) /2
+med_0.75 <- (mean + max) /2 
+levels <- c(min, med_0.25, mean, med_0.75, max)
+levels_spaced <- rep(levels, each = nrow(hardest_customer)/5)
+levels_spaced[length(levels_spaced) ]  = levels_spaced[length(levels_spaced) ]
+levels_spaced[length(levels_spaced) +1]  = levels_spaced[length(levels_spaced) ]
+hardest_customer['levels'] = as.factor(levels_spaced)
+
+hardest_customer %>% 
+  ggplot(mapping = aes(x = customer)) + 
+  geom_line(mapping = aes(y = predict_reg)) + 
+  facet_grid(~ hardest_customer$levels)
+```
+
+At higher levels of xn_01, there is a higher chance of predicting an event for Customer Other. 
+
+
+
+
+
+
+
+
