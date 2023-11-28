@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
 ```
 
 # Load Packages 
@@ -17,11 +17,11 @@ library(caret)
 ```
 
 # Part 1: Exploratory Data Analysis
-## Read Data
+
 ### Read in the data from CSV file
 ```{r}
 df <- readr::read_csv('final_project_train.csv', col_names = TRUE)
-df %>% glimpse()
+head(df)
 ```
 
 ```{r}
@@ -302,7 +302,7 @@ df %>%
 
 ```{r}
 df$log_response <- log(df$response)
-df %>% glimpse
+head(df)
 ```
 
 ```{r}
@@ -414,7 +414,7 @@ mod_cat_cont <- lm(log_response ~ region + customer + outcome +  xb_01 + xb_02 +
                       xw_01 + xw_02 + xw_03 + xs_01 + xs_02 + xs_03 + xs_04 + xs_05 + xs_06, data = df) 
 ```
 
-## Interacting Categorical Input 'Region' with all continious inputs 
+## Interacting Categorical Input 'Region' with all continuous inputs 
 
 ```{r}
 mod_interact_region <- lm(log_response ~ region*xb_01 + region*xb_02 + region*xb_03 + region*xn_01 + region*xn_02 + region*xn_03 + 
@@ -837,11 +837,11 @@ pred_cont %>%
   theme_bw()
 ```
 
-In the second plot, the plot is faceted with the variable xw_01. 
+In the second plot, the plot is faceted with the variable xb_04. 
 The predictions look pretty consistent. They majority of the data points are between 0 and 2. 
 
 
-### Regresiion - Part D
+### Regression - Part D
 
 #### Training Linear Models 
 
@@ -1320,7 +1320,6 @@ cat_cont_post_pred <- summarize_logistic_pred_from_laplace(laplace_cat_cont, Xma
     geom_point(mapping = aes(y = event_prob),
                size = 2.5, alpha = 0.2) +
     facet_grid(~region)
-    theme_bw()
 ```
 
 
@@ -1361,7 +1360,6 @@ continuous_post_pred %>%
                             group = continuous_post_pred$levels),
              size = 2.5, alpha = 0.2) +
   facet_grid(~continuous_post_pred$levels)
-  theme_bw()
 ```
 
 
@@ -1476,7 +1474,7 @@ fit_rf_roc <- train(outcome ~ .,
 ```
 
 
-##### Using Extrem Gradient Boosted Tree to Train, evaluate, and tune the glm_cat_cont model. 
+##### Using Extreme Gradient Boosted Tree to Train, evaluate, and tune the glm_cat_cont model. 
 ```{r}
 set.seed(4321)
 fit_xgb_acc <- train(outcome ~ ., 
@@ -1488,7 +1486,7 @@ fit_xgb_roc <- train(outcome ~ .,
 ```
 
 
-##### Using SVM to Train, evaluate, and tune the glm_cat_cont model. 
+##### Using PLS to Train, evaluate, and tune the glm_cat_cont model. 
 ```{r}
 set.seed(4321)
 fit_pls_acc <- train(outcome ~ .,  data = df_class,  method = "pls",  metric = metric_acc, 
@@ -1529,6 +1527,7 @@ fit_pls_acc
 fit_knn_acc
 
 ```
+
 ```{r}
 cat_cont_tune_roc
 pairwise_tune_roc
@@ -1560,8 +1559,6 @@ For the classification RF, the most important variable is xn_01
 
 The important features between the regression and classification models are not very consistent with each other. 
 
-
-The model results are okay. They had a very high performance on the test metric but I feel as though based on that and the sentiment contributions, that they are not actually that useful. It seems that the most important feature is the response type. 
 
 
 
